@@ -49,21 +49,23 @@ class EprService:
             logger.error("EPR service URL not configured")
             return False
 
+        payload = {
+            "user_id": str(user_id),
+            "action": action,
+            "resource_id": str(resource_id),
+            "principal_type": principal_type,
+        }
+
         try:
             response = await self.http_client.post(
-                f"{self.base_url}/api/v1/permissions/check",
-                json={
-                    "principal_id": str(user_id),
-                    "principal_type": principal_type,
-                    "action": action,
-                    "resource_id": str(resource_id),
-                },
+                f"{self.base_url}/api/v1/authorize",
+                json=payload,
                 timeout=self.timeout,
             )
 
             if response.status_code == 200:
                 data = response.json()
-                is_allowed = data.get("allowed", False)
+                is_allowed = data.get("authorized", False)
                 logger.info(
                     "EPR authorization check",
                     user_id=str(user_id),
@@ -72,14 +74,24 @@ class EprService:
                     allowed=is_allowed,
                 )
                 return is_allowed
-            else:
+
+            if response.status_code == 404:
                 logger.warning(
-                    "EPR service returned non-200 status",
-                    status_code=response.status_code,
+                    "EPR authorization check failed - entity not found",
                     user_id=str(user_id),
                     action=action,
+                    resource_id=str(resource_id),
                 )
                 return False
+
+            logger.warning(
+                "EPR service returned unexpected status",
+                status_code=response.status_code,
+                user_id=str(user_id),
+                action=action,
+                response_body=response.text,
+            )
+            return False
 
         except httpx.TimeoutException:
             logger.error(
@@ -89,12 +101,12 @@ class EprService:
                 timeout=self.timeout,
             )
             return False
-        except Exception as e:
+        except httpx.RequestError as exc:
             logger.error(
-                "EPR service error",
+                "EPR service request error",
                 user_id=str(user_id),
                 action=action,
-                error=str(e),
+                error=str(exc),
             )
             return False
 
