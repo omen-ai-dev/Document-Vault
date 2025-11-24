@@ -41,9 +41,15 @@ def aws_environment(monkeypatch) -> dict[str, object]:
     
     # Mock the entire DocumentService for API tests
     mock_document_service = MagicMock()
+    mock_signature_service = MagicMock()
     app.dependency_overrides[dependencies_module.get_document_service] = lambda: mock_document_service
+    app.dependency_overrides[dependencies_module.get_document_signature_service] = lambda: mock_signature_service
 
-    return {"app_instance": app, "mock_document_service": mock_document_service}
+    return {
+        "app_instance": app,
+        "mock_document_service": mock_document_service,
+        "mock_signature_service": mock_signature_service,
+    }
 
 
 @pytest_asyncio.fixture

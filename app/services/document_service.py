@@ -15,8 +15,9 @@ from app.events.publisher import DocumentEventPublisher
 from app.models.document import (
     Document,
     DocumentAuditEvent,
-    DocumentStatus,
     DocumentEntityType,
+    DocumentSignatureState,
+    DocumentStatus,
 )
 from app.schemas.document import DocumentUploadMetadata
 from app.services.audit_event_publisher import AuditEventPublisher
@@ -194,6 +195,7 @@ class DocumentService:
             status=DocumentStatus.UPLOADED,
             uploaded_by=metadata.uploaded_by,
             metadata_json=metadata.metadata.model_dump() if metadata.metadata else None,
+            signature_state=DocumentSignatureState.NOT_REQUESTED,
         )
         session.add(document)
         await session.flush()

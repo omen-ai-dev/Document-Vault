@@ -1110,3 +1110,67 @@ async def test_document_event_payload_schema_compliance():
     # Verify message attributes
     assert "MessageAttributes" in call_kwargs
     assert call_kwargs["MessageAttributes"]["event_type"]["StringValue"] == "document.uploaded"
+
+
+# ==================== Signature API Tests ====================
+
+
+@pytest.mark.anyio("asyncio")
+async def test_request_document_signatures(async_client, aws_environment, mock_document, document_id, user_id):
+    mock_signature_service = aws_environment["mock_signature_service"]
+    document_with_signatures = SimpleNamespace(**vars(mock_document))
+    document_with_signatures.signature_state = "pending"
+    document_with_signatures.signatures_json = []
+    mock_signature_service.request_signatures = AsyncMock(return_value=document_with_signatures)
+
+    payload = {
+        "requested_by": str(user_id),
+        "signers": [
+            {
+                "user_id": str(user_id),
+                "email": "user@example.com",
+                "role": "issuer",
+                "routing_order": 1,
+            }
+        ],
+        "email_subject": "Please sign",
+    }
+
+    response = await async_client.post(f"/api/v1/documents/{document_id}/signatures/request", json=payload)
+
+    assert response.status_code == 200
+    mock_signature_service.request_signatures.assert_awaited_once()
+
+
+@pytest.mark.anyio("asyncio")
+async def test_get_signature_status(async_client, aws_environment, mock_document, document_id):
+    mock_service = aws_environment["mock_document_service"]
+    document_with_signatures = SimpleNamespace(**vars(mock_document))
+    document_with_signatures.signature_state = "pending"
+    document_with_signatures.signatures_json = []
+    mock_service.get_document = AsyncMock(return_value=document_with_signatures)
+
+    response = await async_client.get(f"/api/v1/documents/{document_id}/signatures/status")
+
+    assert response.status_code == 200
+    mock_service.get_document.assert_awaited_once()
+
+
+@pytest.mark.anyio("asyncio")
+async def test_docusign_webhook(async_client, aws_environment):
+    mock_signature_service = aws_environment["mock_signature_service"]
+    mock_signature_service.process_webhook_notification = AsyncMock()
+
+    payload = {
+        "envelopeId": "env-123",
+        "recipients": {
+            "signers": [
+                {"recipientId": "1", "status": "completed"},
+            ]
+        },
+    }
+
+    response = await async_client.post("/api/v1/documents/signatures/webhook/docusign", json=payload)
+
+    assert response.status_code == 202
+    mock_signature_service.process_webhook_notification.assert_awaited_once()

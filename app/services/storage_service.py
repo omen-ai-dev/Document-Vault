@@ -71,3 +71,15 @@ class StorageService:
                 Params={"Bucket": settings.document_bucket, "Key": storage_key},
                 ExpiresIn=expires_in_seconds,
             )
+
+    async def download_document_bytes(self, storage_key: str) -> bytes:
+        async with self._session.client(
+            "s3",
+            region_name=settings.aws_region,
+            endpoint_url=settings.s3_endpoint_url,
+            config=Config(signature_version="s3v4"),
+        ) as s3_client:
+            response = await s3_client.get_object(Bucket=settings.document_bucket, Key=storage_key)
+            body = response["Body"]
+            data = await body.read()
+            return data

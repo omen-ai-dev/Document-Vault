@@ -35,6 +35,13 @@ class DocumentType(str, PyEnum):
     OTHER = "other"
 
 
+class DocumentSignatureState(str, PyEnum):
+    NOT_REQUESTED = "NOT_REQUESTED"
+    PENDING = "PENDING"
+    PARTIAL = "PARTIAL"
+    COMPLETED = "COMPLETED"
+
+
 class Document(PrimaryKeyUUIDMixin, TimestampMixin, Base):
     __tablename__ = "documents"
 
@@ -71,6 +78,11 @@ class Document(PrimaryKeyUUIDMixin, TimestampMixin, Base):
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
+    signatures_json: Mapped[list[dict[str, Any]] | None] = mapped_column("signatures", JSON, nullable=True)
+    signature_state: Mapped[DocumentSignatureState | None] = mapped_column(
+        SAEnum(DocumentSignatureState, name="documentsignaturestate", native_enum=False), nullable=True
+    )
+    signature_envelope_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=False)
 
 
 
@@ -81,3 +93,5 @@ class DocumentAuditEvent(str, PyEnum):
     ARCHIVED = "document.archived"
     RELINKED = "document.relinked"
     REHASH_REQUESTED = "document.rehash_requested"
+    SIGNATURE_REQUESTED = "document.signature_requested"
+    SIGNATURE_COMPLETED = "document.signature_completed"

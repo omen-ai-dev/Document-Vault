@@ -61,6 +61,9 @@ All endpoints are mounted under `/api/v1/documents` unless noted otherwise.
 | `GET`  | `/{document_id}/download` | Returns a presigned URL for download |
 | `POST` | `/{document_id}/relink` | Moves a document to a new entity + optional token id |
 | `DELETE` | `/{document_id}` | Soft deletes (archives) the document |
+| `POST` | `/{document_id}/signatures/request` | Initiates a DocuSign signature workflow for the provided stakeholders |
+| `GET`  | `/{document_id}/signatures/status` | Returns the document plus aggregated signature progress |
+| `POST` | `/signatures/webhook/docusign` | DocuSign Connect webhook endpoint (JSON) used to reconcile signer status |
 | `GET` | `/healthz` | Simple readiness probe |
 
 Responses are defined in `app/schemas/document.py`. Upload requests expect `metadata` as JSON (optional) alongside form fields.
@@ -82,6 +85,7 @@ Responses are defined in `app/schemas/document.py`. Upload requests expect `meta
 ## Events & Integrations
 
 - **Document lifecycle events** (`document.uploaded`, `document.verified`, `document.mismatch`, `document.archived`, `document.relinked`) are published via SQS.
+- **Signature events** (`document.signature_requested`, `document.signature_completed`) are emitted whenever envelopes are created and when all recipients finish signing.
 - **Audit events** for the same actions are pushed to the EPR service API for centralised ledgering.
 - **Integrity alerts** on hash mismatch are optionally emitted to a compliance alert queue with severity metadata.
 - **Blockchain integration** is currently stubbed; `register_document` logs and returns a deterministic fake tx id.
@@ -117,6 +121,15 @@ Configuration is driven by environment variables parsed in `app/core/config.py`.
 ### Access Control
 - `EPR_MOCK_MODE` (`true` grants everything, `false` uses HTTP client)
 - `EPR_SERVICE_URL`, `EPR_SERVICE_TIMEOUT`
+- `USER_DIRECTORY_BASE_URL`, `USER_DIRECTORY_API_KEY` (optional bearer token)
+
+### DocuSign
+- `DOCUSIGN_BASE_PATH`, `DOCUSIGN_OAUTH_BASE_PATH`
+- `DOCUSIGN_ACCOUNT_ID`
+- `DOCUSIGN_INTEGRATION_KEY`
+- `DOCUSIGN_USER_ID`
+- `DOCUSIGN_PRIVATE_KEY` (PEM contents)
+- `DOCUSIGN_WEBHOOK_SECRET` (optional shared secret for Connect notifications)
 
 ### Blockchain
 - `BLOCKCHAIN_ENDPOINT_URL` (reserved for future real integration)
@@ -183,6 +196,9 @@ Configuration is driven by environment variables parsed in `app/core/config.py`.
 | `uploaded_by`, `verified_by`, `archived_by` | UUID actors |
 | `archived_at` | Timestamp for soft delete |
 | `metadata` | JSON payload (optional) |
+| `signatures` | JSON array of signer metadata (DocuSign envelope recipients) |
+| `signature_state` | Enum (`not_requested`, `pending`, `partial`, `completed`) |
+| `signature_envelope_id` | DocuSign envelope identifier |
 | `created_at`, `updated_at` | Auto timestamps |
 
 ### `document_vault_processed_events`
