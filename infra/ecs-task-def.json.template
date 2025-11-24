@@ -35,7 +35,17 @@
         {"name": "ENABLE_DOCUMENT_CONSUMER", "value": "<ENABLE_DOCUMENT_CONSUMER>"},
         {"name": "DOCUMENT_VAULT_SQS_URL", "value": "<DOCUMENT_VAULT_SQS_URL>"},
         {"name": "DOCUMENT_CONSUMER_MAX_MESSAGES", "value": "<DOCUMENT_CONSUMER_MAX_MESSAGES>"},
-        {"name": "DOCUMENT_CONSUMER_WAIT_TIME", "value": "<DOCUMENT_CONSUMER_WAIT_TIME>"}
+        {"name": "DOCUMENT_CONSUMER_WAIT_TIME", "value": "<DOCUMENT_CONSUMER_WAIT_TIME>"},
+        {"name": "DOCUSIGN_BASE_PATH", "value": "<DOCUSIGN_BASE_PATH>"},
+        {"name": "DOCUSIGN_ACCOUNT_ID", "value": "<DOCUSIGN_ACCOUNT_ID>"},
+        {"name": "DOCUSIGN_INTEGRATION_KEY", "value": "<DOCUSIGN_INTEGRATION_KEY>"},
+        {"name": "DOCUSIGN_USER_ID", "value": "<DOCUSIGN_USER_ID>"},
+        {"name": "DOCUSIGN_OAUTH_BASE_PATH", "value": "<DOCUSIGN_OAUTH_BASE_PATH>"},
+        {"name": "DOCUSIGN_PRIVATE_KEY", "value": "<DOCUSIGN_PRIVATE_KEY>"},
+        {"name": "DOCUSIGN_WEBHOOK_SECRET", "value": "<DOCUSIGN_WEBHOOK_SECRET>"},
+        {"name": "DOCUSIGN_REDIRECT_URI", "value": "<DOCUSIGN_REDIRECT_URI>"},
+        {"name": "USER_DIRECTORY_BASE_URL", "value": "<USER_DIRECTORY_BASE_URL>"},
+        {"name": "USER_DIRECTORY_API_KEY", "value": "<USER_DIRECTORY_API_KEY>"}
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

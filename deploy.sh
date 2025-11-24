@@ -91,7 +91,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Use sed for simple replacement
+# Use sed for simple replacement (excluding DOCUSIGN_PRIVATE_KEY which has newlines)
 sed \
   -e "s|<TASK_FAMILY>|${TASK_FAMILY}|g" \
   -e "s|<CONTAINER_NAME>|${CONTAINER_NAME}|g" \
@@ -116,9 +116,39 @@ sed \
   -e "s|<DOCUMENT_VAULT_SQS_URL>|${DOCUMENT_VAULT_SQS_URL}|g" \
   -e "s|<DOCUMENT_CONSUMER_MAX_MESSAGES>|${DOCUMENT_CONSUMER_MAX_MESSAGES}|g" \
   -e "s|<DOCUMENT_CONSUMER_WAIT_TIME>|${DOCUMENT_CONSUMER_WAIT_TIME}|g" \
+  -e "s|<DOCUSIGN_BASE_PATH>|${DOCUSIGN_BASE_PATH:-}|g" \
+  -e "s|<DOCUSIGN_ACCOUNT_ID>|${DOCUSIGN_ACCOUNT_ID:-}|g" \
+  -e "s|<DOCUSIGN_INTEGRATION_KEY>|${DOCUSIGN_INTEGRATION_KEY:-}|g" \
+  -e "s|<DOCUSIGN_USER_ID>|${DOCUSIGN_USER_ID:-}|g" \
+  -e "s|<DOCUSIGN_OAUTH_BASE_PATH>|${DOCUSIGN_OAUTH_BASE_PATH:-}|g" \
+  -e "s|<DOCUSIGN_WEBHOOK_SECRET>|${DOCUSIGN_WEBHOOK_SECRET:-}|g" \
+  -e "s|<DOCUSIGN_REDIRECT_URI>|${DOCUSIGN_REDIRECT_URI:-}|g" \
+  -e "s|<USER_DIRECTORY_BASE_URL>|${USER_DIRECTORY_BASE_URL:-}|g" \
+  -e "s|<USER_DIRECTORY_API_KEY>|${USER_DIRECTORY_API_KEY:-}|g" \
   -e "s|<CLOUDWATCH_LOG_GROUP>|${CLOUDWATCH_LOG_GROUP}|g" \
   -e "s|<CLOUDWATCH_STREAM_PREFIX>|${CLOUDWATCH_STREAM_PREFIX}|g" \
   "${TEMPLATE_PATH}" > "${RENDERED_TASK_DEF}"
+
+# Handle DOCUSIGN_PRIVATE_KEY separately (handles newlines properly)
+# Escape the private key: convert actual newlines to literal \n for JSON
+if [[ -n "${DOCUSIGN_PRIVATE_KEY:-}" ]]; then
+  # Safely JSON-escape the private key so it remains valid JSON when injected
+  export RENDERED_TASK_DEF
+  python - <<'PY'
+import json, os, pathlib
+
+path = pathlib.Path(os.environ["RENDERED_TASK_DEF"])
+key = os.environ.get("DOCUSIGN_PRIVATE_KEY", "") or ""
+
+# json.dumps escapes newlines/quotes; strip surrounding quotes afterwards
+escaped_key = json.dumps(key)[1:-1]
+
+text = path.read_text()
+path.write_text(text.replace("<DOCUSIGN_PRIVATE_KEY>", escaped_key))
+PY
+else
+  perl -i -pe "s|<DOCUSIGN_PRIVATE_KEY>||g" "${RENDERED_TASK_DEF}"
+fi
 
 
 TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json "file://${RENDERED_TASK_DEF}" --query 'taskDefinition.taskDefinitionArn' --output text)

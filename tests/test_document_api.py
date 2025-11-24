@@ -1119,7 +1119,7 @@ async def test_document_event_payload_schema_compliance():
 async def test_request_document_signatures(async_client, aws_environment, mock_document, document_id, user_id):
     mock_signature_service = aws_environment["mock_signature_service"]
     document_with_signatures = SimpleNamespace(**vars(mock_document))
-    document_with_signatures.signature_state = "pending"
+    document_with_signatures.signature_state = "PENDING"
     document_with_signatures.signatures_json = []
     mock_signature_service.request_signatures = AsyncMock(return_value=document_with_signatures)
 
@@ -1146,7 +1146,7 @@ async def test_request_document_signatures(async_client, aws_environment, mock_d
 async def test_get_signature_status(async_client, aws_environment, mock_document, document_id):
     mock_service = aws_environment["mock_document_service"]
     document_with_signatures = SimpleNamespace(**vars(mock_document))
-    document_with_signatures.signature_state = "pending"
+    document_with_signatures.signature_state = "PENDING"
     document_with_signatures.signatures_json = []
     mock_service.get_document = AsyncMock(return_value=document_with_signatures)
 
