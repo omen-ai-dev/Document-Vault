@@ -137,7 +137,7 @@ async def test_process_webhook_updates_state():
     await service.process_webhook_notification(
         session,
         envelope_id="env-1",
-        recipient_updates=[{"recipientId": "1", "status": "completed"}],
+        recipient_updates=[{"recipientId": "1", "email": "user@example.com", "status": "completed"}],
     )
 
     assert document.signature_state == DocumentSignatureState.COMPLETED

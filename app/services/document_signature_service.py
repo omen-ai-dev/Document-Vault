@@ -66,10 +66,22 @@ class DocumentSignatureService:
         storage_service = self._document_service.storage_service
         document_bytes = await storage_service.download_document_bytes(document.storage_key)
 
-        docusign_signers = [
-            DocuSignRecipient(email=signer["email"], name=signer["name"], routing_order=signer["routing_order"] or idx + 1)
-            for idx, signer in enumerate(resolved_signers)
-        ]
+        signer_payloads: list[tuple[dict[str, Any], str]] = []
+        docusign_signers: list[DocuSignRecipient] = []
+        for idx, signer in enumerate(resolved_signers):
+            # Prefer the caller-provided signer_id for round-tripping in webhooks,
+            # otherwise fall back to email, then positional index.
+            recipient_id = str(signer.get("signer_id") or signer["email"] or idx + 1)
+            routing_order = signer.get("routing_order") or idx + 1
+            docusign_signers.append(
+                DocuSignRecipient(
+                    email=signer["email"],
+                    name=signer["name"],
+                    routing_order=routing_order,
+                    recipient_id=recipient_id,
+                )
+            )
+            signer_payloads.append((signer, recipient_id))
 
         try:
             envelope_id, recipient_map = await self._docusign_service.create_envelope(
@@ -96,8 +108,8 @@ class DocumentSignatureService:
 
         now = datetime.now(tz=timezone.utc).isoformat()
         document.signatures_json = []
-        for signer in resolved_signers:
-            recipient_id = recipient_map.get(signer["email"])
+        for signer, recipient_id in signer_payloads:
+            mapped_recipient_id = recipient_map.get(signer["email"]) or recipient_id
             document.signatures_json.append(
                 {
                     "signer_id": signer.get("signer_id"),
@@ -108,7 +120,7 @@ class DocumentSignatureService:
                     "signed": False,
                     "signature_requested_at": now,
                     "signature_completed_at": None,
-                    "docusign_recipient_id": recipient_id,
+                    "docusign_recipient_id": mapped_recipient_id,
                 }
             )
 
@@ -145,23 +157,64 @@ class DocumentSignatureService:
             return
 
         updated = False
-        status_map = {update.get("recipientId"): update for update in recipient_updates}
+
+        def _norm_email(value: Any) -> str:
+            return str(value).strip().lower() if value else ""
+
+        email_map = {_norm_email(update.get("email")): update for update in recipient_updates if update.get("email")}
+        id_map = {str(update.get("recipientId")): update for update in recipient_updates if update.get("recipientId")}
+        guid_map = {str(update.get("recipientIdGuid")): update for update in recipient_updates if update.get("recipientIdGuid")}
+
+        new_signatures: list[dict[str, Any]] = []
         for signer in document.signatures_json or []:
-            recipient_id = signer.get("docusign_recipient_id")
-            update = status_map.get(recipient_id)
-            if not update:
-                continue
-            status = (update.get("status") or "").lower()
-            if status == "completed" and not signer.get("signed"):
-                signer["signed"] = True
-                signer["signature_completed_at"] = datetime.now(tz=timezone.utc).isoformat()
-                updated = True
+            update = None
+
+            # Prefer matching by email for robustness across payload shapes
+            email_key = _norm_email(signer.get("email"))
+            if email_key and email_key in email_map:
+                update = email_map[email_key]
+
+            # Fallback to recipient id/guid if email is missing in payload
+            if update is None:
+                recipient_id = signer.get("docusign_recipient_id") or signer.get("recipient_id")
+                if recipient_id:
+                    update = id_map.get(str(recipient_id)) or guid_map.get(str(recipient_id))
+
+            if update:
+                status = (update.get("status") or "").lower()
+                if status == "completed" and not signer.get("signed"):
+                    signer = dict(signer)
+                    signer["signed"] = True
+                    signer["signature_completed_at"] = datetime.now(tz=timezone.utc).isoformat()
+                    updated = True
+                    logger.info(
+                        "DocuSign signer marked completed",
+                        envelope_id=envelope_id,
+                        signer_email=signer.get("email"),
+                        recipient_id=signer.get("docusign_recipient_id"),
+                    )
+            else:
+                logger.debug(
+                    "DocuSign signer update not found for webhook payload",
+                    envelope_id=envelope_id,
+                    signer_email=signer.get("email"),
+                    signer_recipient_id=signer.get("docusign_recipient_id"),
+                )
+
+            new_signatures.append(signer)
 
         if not updated:
             return
 
+        # Assign the signatures_json anew so SQLAlchemy detects the mutation
+        document.signatures_json = new_signatures
         document.signature_state = self._compute_signature_state(document)
         await self._session_add(session, document)
+        logger.info(
+            "DocuSign webhook processed and persisted",
+            envelope_id=envelope_id,
+            signature_state=document.signature_state.value if hasattr(document.signature_state, "value") else str(document.signature_state),
+        )
 
         if document.signature_state == DocumentSignatureState.COMPLETED:
             await self._emit_all_signed_events(document)

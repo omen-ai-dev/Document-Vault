@@ -280,11 +280,49 @@ async def docusign_webhook(
     signature_service: DocumentSignatureService = Depends(get_document_signature_service),
 ):
     payload = await request.json()
-    envelope_id = payload.get("envelopeId") or payload.get("EnvelopeID")
-    recipients_section = payload.get("recipients") or payload.get("Recipients") or {}
-    recipient_updates = recipients_section.get("signers") or recipients_section.get("Signers") or []
+    logger.info("DocuSign webhook received", raw_payload=payload)
+
+    def _extract_envelope_id(data: dict) -> str | None:
+        direct = data.get("envelopeId") or data.get("EnvelopeID")
+        if direct:
+            return direct
+        nested = data.get("data") or {}
+        if nested:
+            direct = nested.get("envelopeId") or nested.get("EnvelopeID")
+            if direct:
+                return direct
+            summary = nested.get("envelopeSummary") or {}
+            return summary.get("envelopeId") or summary.get("EnvelopeID")
+        return None
+
+    def _extract_signers(data: dict) -> list[dict]:
+        recipients_section = data.get("recipients") or data.get("Recipients")
+        if recipients_section:
+            signers = recipients_section.get("signers") or recipients_section.get("Signers")
+            if signers:
+                return signers
+
+        nested = data.get("data") or {}
+        if nested:
+            # Most DocuSign Connect payloads nest recipients under envelopeSummary
+            summary = nested.get("envelopeSummary") or {}
+            recipients_section = summary.get("recipients") or {}
+            signers = recipients_section.get("signers") or recipients_section.get("Signers")
+            if signers:
+                return signers
+
+            recipients_section = nested.get("recipients") or {}
+            signers = recipients_section.get("signers") or recipients_section.get("Signers")
+            if signers:
+                return signers
+
+        return []
+
+    envelope_id = _extract_envelope_id(payload)
     if not envelope_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Envelope ID missing in webhook payload")
+
+    recipient_updates = _extract_signers(payload)
 
     await signature_service.process_webhook_notification(session, envelope_id, recipient_updates)
     await session.commit()

@@ -33,6 +33,7 @@ class DocuSignRecipient:
     email: str
     name: str
     routing_order: int
+    recipient_id: str | None = None
 
 
 class DocuSignService:
@@ -166,7 +167,7 @@ class DocuSignService:
         ds_signers: list[Signer] = []
         recipient_map: dict[str, str] = {}
         for idx, recipient in enumerate(signers, start=1):
-            recipient_id = str(idx)
+            recipient_id = recipient.recipient_id or str(idx)
             ds_signers.append(
                 Signer(
                     email=recipient.email,
