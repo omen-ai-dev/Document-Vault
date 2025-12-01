@@ -184,7 +184,7 @@ Configuration is driven by environment variables parsed in `app/core/config.py`.
 | Column | Notes |
 |--------|-------|
 | `id` (UUID PK) | Generated UUID |
-| `entity_type` | Enum (`issuer`, `investor`, `deal`, `token`, `compliance`) |
+| `entity_type` | Enum (`issuer`, `investor`, `deal`, `token`, `compliance`, `offering`) |
 | `entity_id` | UUID of owning entity |
 | `token_id` | Optional int |
 | `document_type` | Enum (operating agreement, KYC, etc.) |

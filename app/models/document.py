@@ -20,6 +20,7 @@ class DocumentStatus(str, PyEnum):
 
 class DocumentEntityType(str, PyEnum):
     ISSUER = "issuer"
+    OFFERING = "offering"
     INVESTOR = "investor"
     DEAL = "deal"
     TOKEN = "token"
